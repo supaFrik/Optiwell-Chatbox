@@ -21,7 +21,6 @@ async def transcribe(
     if not file and not url:
         raise HTTPException(status_code=400, detail="Provide either file upload or url.")
 
-    # If file provided, write to temp path
     file_path = None
     if file:
         contents = await file.read()

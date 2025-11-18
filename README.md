@@ -210,6 +210,10 @@ Set the following in your shell or a `.env` file at the project root:
 ```
 OPENAI_API_KEY=your_openai_key_here
 GROQ_API_KEY=your_groq_key_here
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_mysql_password
 ```
 
 Windows (temporary session):
@@ -222,9 +226,109 @@ Windows (persist for new shells):
 ```
 setx OPENAI_API_KEY "your_openai_key_here"
 setx GROQ_API_KEY "your_groq_key_here"
+setx DB_HOST "localhost"
+setx DB_PORT "3306"
+setx DB_USER "root"
+setx DB_PASSWORD "your_mysql_password"
 ```
 
 If `OPENAI_API_KEY` is missing the app will fall back to gTTS for doctor voice output.
+
+## MySQL Persistence
+
+The app now logs patient and doctor messages to a MySQL database named `Optiwell`.
+
+Environment variables control the connection:
+```
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+```
+
+On first launch the code will:
+1. Create the database `Optiwell` if it does not exist.
+2. Create tables `sessions` and `messages`.
+3. Generate a session UUID per Gradio app instance and store each patient/doctor exchange.
+
+Schema overview:
+```
+sessions(id PK, session_uuid UNIQUE, created_at)
+messages(id PK, session_uuid FK->sessions.session_uuid, role ENUM('patient','doctor'), content TEXT, image_path VARCHAR(255), created_at)
+```
+
+Install MySQL (if not already):
+Windows: Download installer from https://dev.mysql.com/downloads/mysql/ and follow setup (ensure you note the root password).
+macOS (Homebrew): `brew install mysql` then `brew services start mysql`.
+Linux (Debian/Ubuntu): `sudo apt update && sudo apt install mysql-server`.
+
+Test connectivity (PowerShell):
+```powershell
+python - <<'PY'
+from src.ai_doctor.db import init_db, create_session, save_message
+init_db()
+sid = create_session()
+save_message(sid, 'patient', 'Test symptoms', None)
+save_message(sid, 'doctor', 'Test response', None)
+print('Inserted sample messages for session', sid)
+PY
+```
+
+If you see a connection error, verify that the MySQL service is running and credentials match the environment variables.
+
+## Docker Usage
+
+### Quick Local Build (App only)
+```powershell
+docker build -t optiwell-app .
+docker run --rm -p 7860:7860 ^
+   -e GROQ_API_KEY=$env:GROQ_API_KEY ^
+   -e OPENAI_API_KEY=$env:OPENAI_API_KEY ^
+   -e DB_HOST=$env:DB_HOST -e DB_PORT=$env:DB_PORT -e DB_USER=$env:DB_USER -e DB_PASSWORD=$env:DB_PASSWORD \
+   optiwell-app
+```
+
+### Full Stack (App + MySQL)
+Create an `.env` file (optional) with:
+```
+DB_PASSWORD=rootpassword
+GROQ_API_KEY=your_groq
+OPENAI_API_KEY=your_openai_optional
+```
+Then run:
+```powershell
+docker compose up --build
+```
+Access UI at http://localhost:7860
+
+MySQL is exposed on `localhost:3306` (root / DB_PASSWORD). The database `Optiwell` and tables are auto-created at app start.
+
+### Tear Down
+```powershell
+docker compose down
+```
+
+### Persisted Data
+MySQL data stored in the named volume `mysql_data`. Remove it with:
+```powershell
+docker compose down -v
+```
+
+### Health Check
+Compose file includes a simple MySQL healthcheck. App starts after container creation; initialization retries are handled in code.
+
+### Rebuilding After Changes
+```powershell
+docker compose build app
+docker compose up -d
+```
+
+### Using FastAPI Endpoint in Docker
+Modify the app service command if you prefer the STT API only:
+```yaml
+      command: uvicorn src.ai_doctor.api:app --host 0.0.0.0 --port 8000
+```
+Then expose `8000:8000` in ports.
 
 ## Architecture
 

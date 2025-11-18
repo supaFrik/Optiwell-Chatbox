@@ -89,7 +89,6 @@ def groq_transcribe(
 
     transcription = client.audio.transcriptions.create(**kwargs)
 
-    # Robust text extraction
     text = getattr(transcription, "text", None) or (
         isinstance(transcription, dict) and transcription.get("text")
     ) or str(transcription)
@@ -179,7 +178,6 @@ def analyze_verbose_segments(verbose_json: dict) -> list[dict]:
     data = verbose_json if isinstance(verbose_json, dict) else {}
     raw_segments = data.get("segments") or data.get("segments", [])
     if not raw_segments and "text" in data:
-        # Some SDKs may flatten; attempt to reconstruct minimal info
         return []
 
     for seg in raw_segments:

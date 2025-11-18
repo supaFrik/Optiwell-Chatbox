@@ -7,9 +7,14 @@ except ImportError:
     OpenAI = None
 
 def text_to_speech_with_gtts(input_text: str, output_filepath: str, lang: str = "en") -> str:
+    out_path = Path(output_filepath)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     audioobj = gTTS(text=input_text, lang=lang if lang else "en", slow=False)
-    audioobj.save(output_filepath)
-    return output_filepath
+    try:
+        audioobj.save(str(out_path))
+    except Exception:
+        raise
+    return str(out_path)
 
 def text_to_speech_with_openai(
     input_text: str,
@@ -24,6 +29,7 @@ def text_to_speech_with_openai(
         return text_to_speech_with_gtts(input_text, output_filepath, lang=(lang or "en"))
     client = OpenAI(api_key=api_key)
     out_path = Path(output_filepath)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with client.audio.speech.with_streaming_response.create(
             model="gpt-4o-mini-tts",

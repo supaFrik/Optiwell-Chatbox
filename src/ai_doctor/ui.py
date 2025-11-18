@@ -4,6 +4,7 @@ from .prompts import SYSTEM_PROMPT
 from .vision import encode_image, analyze_image_with_query, analyze_text_query
 from .tts import text_to_speech_with_openai
 from .stt import groq_transcribe
+from .db import init_db, create_session, save_message
 
 from typing import Optional, Tuple
 from pathlib import Path
@@ -36,6 +37,18 @@ def process_inputs(image_filepath, patient_text):
         lang="en",
     )
     return doctor_response, voice_of_doctor
+
+def process_and_log(image_filepath, patient_text, session_uuid):
+    doctor_response, voice_path = process_inputs(image_filepath, patient_text)
+    try:
+        if patient_text and patient_text.strip():
+            save_message(session_uuid, "patient", patient_text, image_filepath)
+        if doctor_response:
+            save_message(session_uuid, "doctor", doctor_response, None)
+    except Exception as e:
+        # Non-fatal; log to console
+        print(f"DB logging failed: {e}")
+    return doctor_response, voice_path
 
 
 def ui_transcribe_audio(audio_file: Optional[str], file_obj: Optional[str]) -> Tuple[str, str, Optional[str]]:
@@ -135,6 +148,12 @@ def ui_transcribe_audio(audio_file: Optional[str], file_obj: Optional[str]) -> T
 
 
 def create_app():
+    # Initialize DB & session
+    try:
+        init_db()
+    except Exception as e:
+        print(f"Database init error: {e}")
+    session_uuid = create_session()
     with gr.Blocks() as demo:
         gr.Markdown("# AI Doctor (Vision + Text)")
         with gr.Row():
@@ -152,6 +171,7 @@ def create_app():
             with gr.Column():
                 doctor_out = gr.Textbox(label="Doctor's Response", lines=10)
                 audio_out = gr.Audio(label="Doctor Voice", visible=True)
+                session_state = gr.State(session_uuid)
 
         # Wire transcription button: populate patient_text and show language/status
         transcribe_btn.click(
@@ -161,8 +181,8 @@ def create_app():
         )
 
         submit_btn.click(
-            fn=process_inputs,
-            inputs=[image_in, patient_text],
+            fn=process_and_log,
+            inputs=[image_in, patient_text, session_state],
             outputs=[doctor_out, audio_out],
         )
     return demo
