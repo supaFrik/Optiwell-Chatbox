@@ -156,6 +156,43 @@ Response JSON:
 { "text": "...", "language": "en" }
 ```
 
+### Media Upload Endpoint (/upload-media)
+Store patient‑submitted images and videos under the project `assets` directory, separated per session.
+
+Folder layout (created on demand):
+```
+assets/
+  <session_id>/
+    images/   # image files (.jpg .png ...)
+    audio/    # audio files (.mp3 .wav .m4a .ogg ...)
+```
+
+Example (multiple files):
+```powershell
+curl -X POST http://127.0.0.1:8000/upload-media ^
+  -F "session_id=123e4567" ^
+  -F "files=@assets/images/sample_skin.jpg" ^
+  -F "files=@assets/audio/patient_voice_test_for_patient.mp4"
+```
+
+Response sample (paths will be absolute on Windows):
+```json
+{
+  "session_id": "123e4567",
+  "directories": {
+    "base": "assets/123e4567",
+    "images": "assets/123e4567/images",
+    "videos": "assets/123e4567/videos"
+  },
+  "files": [
+    {"filename": "sample_skin.jpg", "stored": true, "kind": "image", "path": "assets/123e4567/images/sample_skin.jpg"},
+    {"filename": "patient_voice_test_for_patient.mp3", "stored": true, "kind": "audio", "path": "assets/123e4567/audio/patient_voice_test_for_patient.mp3"}
+  ]
+}
+```
+
+Unsupported extensions are skipped with `stored=false` and a reason.
+
 ### Whisper Model Guidance
 - Highest quality: `whisper-large-v3`
 - Faster / cheaper: `whisper-large-v3-turbo`
